@@ -1,7 +1,11 @@
 {
-  "name": "catalog-api",
+  "name": "product-catalog",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node index.js"
+  },
   "dependencies": {
     "node-fetch": "^3.3.2",
     "xlsx": "^0.18.5"
