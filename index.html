@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>קטלוג מוצרים</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; direction: rtl; }
+    header { background: #2196f3; color: white; padding: 15px; text-align: center; position: sticky; top: 0; z-index: 10; }
+    .container { padding: 20px; max-width: 1200px; margin: auto; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    .filters select, .filters input { padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
+    .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 15px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+    .card img { width: 100%; height: 200px; object-fit: contain; margin-bottom: 10px; border-bottom: 1px solid #eee; }
+    .name { font-size: 18px; font-weight: bold; color: #333; margin: 10px 0; }
+    .price { font-size: 16px; color: #2196f3; margin: 5px 0; }
+    .group, .dept { font-size: 14px; color: #666; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📦 קטלוג מוצרים</h1>
+  </header>
+  <div class="container">
+    <div class="filters">
+      <input type="text" id="search" placeholder="חפש מוצר...">
+      <select id="deptFilter">
+        <option value="">כל המחלקות</option>
+      </select>
+      <select id="groupFilter">
+        <option value="">כל הקבוצות</option>
+      </select>
+    </div>
+    <div class="catalog" id="catalog"></div>
+  </div>
+
+  <script>
+    let data = [];
+    let departments = new Set();
+    let groups = new Set();
+
+    async function loadCatalog() {
+      const res = await fetch('/api/fetch-catalog');
+      data = await res.json();
+      data.forEach(item => {
+        departments.add(item.department);
+        groups.add(item.group);
+      });
+      renderFilters();
+      renderCatalog();
+    }
+
+    function renderFilters() {
+      const deptSelect = document.getElementById("deptFilter");
+      [...departments].sort().forEach(dept => {
+        const opt = document.createElement("option");
+        opt.value = dept; opt.textContent = dept;
+        deptSelect.appendChild(opt);
+      });
+      const groupSelect = document.getElementById("groupFilter");
+      [...groups].sort().forEach(group => {
+        const opt = document.createElement("option");
+        opt.value = group; opt.textContent = group;
+        groupSelect.appendChild(opt);
+      });
+    }
+
+    function renderCatalog() {
+      const catalog = document.getElementById("catalog");
+      catalog.innerHTML = "";
+      const search = document.getElementById("search").value.toLowerCase();
+      const dept = document.getElementById("deptFilter").value;
+      const group = document.getElementById("groupFilter").value;
+      const filtered = data.filter(item => {
+        return (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
+               (dept === "" || item.department === dept) &&
+               (group === "" || item.group === group);
+      });
+      filtered.forEach(item => {
+        const card = document.createElement("div"); card.className = "card";
+        const img = document.createElement("img"); img.src = item.imageUrl; img.onerror = () => img.src = 'https://via.placeholder.com/250x200?text=No+Image';
+        const name = document.createElement("div"); name.className = "name"; name.textContent = item.name;
+        const price = document.createElement("div"); price.className = "price"; price.textContent = item.price + " ₪";
+        const deptDiv = document.createElement("div"); deptDiv.className = "dept"; deptDiv.textContent = item.department;
+        const groupDiv = document.createElement("div"); groupDiv.className = "group"; groupDiv.textContent = item.group;
+        card.append(img, name, price, deptDiv, groupDiv);
+        catalog.appendChild(card);
+      });
+    }
+
+    document.getElementById("search").addEventListener("input", renderCatalog);
+    document.getElementById("deptFilter").addEventListener("change", renderCatalog);
+    document.getElementById("groupFilter").addEventListener("change", renderCatalog);
+
+    loadCatalog();
+  </script>
+</body>
+</html>
