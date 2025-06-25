@@ -3,24 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📦 קטלוג מוצרים</title>
+  <title>קטלוג מוצרים</title>
   <style>
     body {
-      font-family: 'Arial', sans-serif;
-      background-color: #f5f5f5;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
       margin: 0;
       padding: 0;
     }
 
     header {
-      background-color: #1976d2;
+      background: #1976d2;
       color: white;
+      padding: 16px;
       text-align: center;
-      padding: 1rem;
-      font-size: 1.5rem;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      font-size: 22px;
+      font-weight: bold;
     }
 
     .container {
@@ -32,39 +30,36 @@
     .filters {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
       margin-bottom: 20px;
+      justify-content: center;
     }
 
-    .filters input,
-    .filters select {
+    .filters select,
+    .filters input {
       padding: 10px;
-      font-size: 1rem;
+      font-size: 16px;
       border-radius: 8px;
       border: 1px solid #ccc;
-      flex: 1;
-      min-width: 200px;
+      width: 200px;
     }
 
     .catalog {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
     }
 
     .card {
-      background-color: white;
-      border-radius: 10px;
-      padding: 15px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
-      transition: transform 0.2s;
-    }
-
-    .card:hover {
-      transform: translateY(-5px);
+      text-align: center;
+      padding: 12px;
     }
 
     .card img {
@@ -76,27 +71,21 @@
     }
 
     .name {
+      font-size: 18px;
       font-weight: bold;
       color: #333;
-      margin: 5px 0;
-      font-size: 1.1rem;
+      margin: 4px 0;
     }
 
     .price {
-      color: #2196f3;
-      font-weight: bold;
-      margin: 5px 0;
+      color: #2e7d32;
+      font-size: 16px;
+      margin: 2px 0;
     }
 
-    .group, .department {
-      font-size: 0.9rem;
+    .dept, .group {
+      font-size: 14px;
       color: #666;
-    }
-
-    @media (max-width: 600px) {
-      .filters {
-        flex-direction: column;
-      }
     }
   </style>
 </head>
@@ -105,8 +94,8 @@
 
   <div class="container">
     <div class="filters">
-      <input type="text" id="searchInput" placeholder="חפש מוצר לפי שם או ברקוד..." />
-      <select id="departmentFilter">
+      <input type="text" id="search" placeholder="חיפוש חופשי...">
+      <select id="deptFilter">
         <option value="">כל המחלקות</option>
       </select>
       <select id="groupFilter">
@@ -114,103 +103,101 @@
       </select>
     </div>
 
-    <div class="catalog" id="catalogGrid"></div>
+    <div class="catalog" id="catalog"></div>
   </div>
 
   <script>
     let catalogData = [];
+    let departments = new Set();
+    let groups = new Set();
 
     async function loadCatalog() {
       try {
         const res = await fetch('/api/fetch-catalog');
-        const result = await res.json();
+        const json = await res.json();
 
-        if (!result.catalog || !Array.isArray(result.catalog)) {
-          console.error("הקטלוג שהתקבל לא תקין:", result);
+        if (!Array.isArray(json.catalog)) {
+          console.error("⚠️ הקטלוג שהתקבל לא תקין:", json);
           return;
         }
 
-        catalogData = result.catalog;
-        populateFilters();
+        catalogData = json.catalog;
+        catalogData.forEach(item => {
+          departments.add(item.department);
+          groups.add(item.group);
+        });
+
+        renderFilters();
         renderCatalog();
       } catch (err) {
-        console.error("שגיאה בטעינת הקטלוג:", err);
+        console.error("שגיאת טעינת קטלוג:", err);
       }
     }
 
-    function populateFilters() {
-      const deptSet = new Set();
-      const groupSet = new Set();
-
-      catalogData.forEach(item => {
-        if (item.department) deptSet.add(item.department);
-        if (item.group) groupSet.add(item.group);
+    function renderFilters() {
+      const deptSel = document.getElementById("deptFilter");
+      [...departments].sort().forEach(dep => {
+        const opt = document.createElement("option");
+        opt.value = dep;
+        opt.textContent = dep;
+        deptSel.appendChild(opt);
       });
 
-      const deptSelect = document.getElementById('departmentFilter');
-      const groupSelect = document.getElementById('groupFilter');
-
-      [...deptSet].sort().forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = opt.textContent = d;
-        deptSelect.appendChild(opt);
-      });
-
-      [...groupSet].sort().forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = opt.textContent = g;
-        groupSelect.appendChild(opt);
+      const groupSel = document.getElementById("groupFilter");
+      [...groups].sort().forEach(gr => {
+        const opt = document.createElement("option");
+        opt.value = gr;
+        opt.textContent = gr;
+        groupSel.appendChild(opt);
       });
     }
 
     function renderCatalog() {
-      const grid = document.getElementById('catalogGrid');
-      grid.innerHTML = '';
+      const container = document.getElementById("catalog");
+      container.innerHTML = "";
 
-      const searchText = document.getElementById('searchInput').value.toLowerCase();
-      const dept = document.getElementById('departmentFilter').value;
-      const group = document.getElementById('groupFilter').value;
+      const search = document.getElementById("search").value.toLowerCase();
+      const dept = document.getElementById("deptFilter").value;
+      const group = document.getElementById("groupFilter").value;
 
       const filtered = catalogData.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchText) || item.barcode.includes(searchText);
-        const matchesDept = !dept || item.department === dept;
-        const matchesGroup = !group || item.group === group;
-        return matchesSearch && matchesDept && matchesGroup;
+        return (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
+               (!dept || item.department === dept) &&
+               (!group || item.group === group);
       });
 
       filtered.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'card';
+        const card = document.createElement("div");
+        card.className = "card";
 
-        const img = document.createElement('img');
-        img.src = `/api/image-proxy?barcode=${item.barcode}`;
-        img.alt = item.name;
-        img.onerror = () => img.src = 'https://via.placeholder.com/250x200?text=No+Image';
+        const img = document.createElement("img");
+        img.src = `/api/image-proxy?path=${encodeURIComponent(item.imagePath)}`;
+        img.onerror = () => img.src = 'https://via.placeholder.com/250x180?text=No+Image';
 
-        const name = document.createElement('div');
-        name.className = 'name';
+        const name = document.createElement("div");
+        name.className = "name";
         name.textContent = item.name;
 
-        const price = document.createElement('div');
-        price.className = 'price';
+        const price = document.createElement("div");
+        price.className = "price";
         price.textContent = item.price + " ₪";
 
-        const dept = document.createElement('div');
-        dept.className = 'department';
-        dept.textContent = item.department;
+        const deptDiv = document.createElement("div");
+        deptDiv.className = "dept";
+        deptDiv.textContent = item.department;
 
-        const group = document.createElement('div');
-        group.className = 'group';
-        group.textContent = item.group;
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "group";
+        groupDiv.textContent = item.group;
 
-        card.append(img, name, price, dept, group);
-        grid.appendChild(card);
+        card.append(img, name, price, deptDiv, groupDiv);
+        container.appendChild(card);
       });
     }
 
-    document.getElementById('searchInput').addEventListener('input', renderCatalog);
-    document.getElementById('departmentFilter').addEventListener('change', renderCatalog);
-    document.getElementById('groupFilter').addEventListener('change', renderCatalog);
+    document.getElementById("search").addEventListener("input", renderCatalog);
+    document.getElementById("deptFilter").addEventListener("change", renderCatalog);
+    document.getElementById("groupFilter").addEventListener("change", renderCatalog);
 
     loadCatalog();
   </script>
