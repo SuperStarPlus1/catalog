@@ -3,6 +3,8 @@ import fetch from 'node-fetch';
 
 export const config = { runtime: 'nodejs' };
 
+const BASE_FOLDER = '/סריקות חנות/מוצרים';
+
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
   params.append('grant_type', 'refresh_token');
@@ -40,7 +42,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: '/forms/catalog.xls' })
+        'Dropbox-API-Arg': JSON.stringify({ path: `${BASE_FOLDER}/catalog.xls` })
       }
     });
 
@@ -61,7 +63,7 @@ export default async function handler(req, res) {
       department: row[3] || '',
       group: row[4] || '',
       price: row[5] || '',
-      imageUrl: `https://content.dropboxapi.com/2/files/download?arg=${encodeURIComponent(JSON.stringify({ path: `/forms/${row[2]}.jpg` }))}&authorization=Bearer ${DROPBOX_TOKEN}`
+      imageUrl: `https://content.dropboxapi.com/2/files/download?arg=${encodeURIComponent(JSON.stringify({ path: `${BASE_FOLDER}/${row[2]}.jpg` }))}&authorization=Bearer ${DROPBOX_TOKEN}`
     }));
 
     res.status(200).json(catalog);
