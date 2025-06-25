@@ -5,137 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>📦 קטלוג מוצרים</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      margin: 0;
-      padding: 0;
-    }
-    header {
-      background-color: #1976d2;
-      color: white;
-      padding: 15px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .container {
-      max-width: 1200px;
-      margin: auto;
-      padding: 20px;
-    }
-    .filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    .filters input, .filters select {
-      padding: 10px;
-      font-size: 16px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      flex: 1;
-    }
-    .catalog {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 15px;
-    }
-    .card {
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      padding: 15px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-    }
-    .card img {
-      width: 100%;
-      height: 200px;
-      object-fit: contain;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-    }
-    .name {
-      font-size: 18px;
-      font-weight: bold;
-      margin: 5px 0;
-    }
-    .price {
-      font-size: 16px;
-      color: #388e3c;
-      margin: 5px 0;
-    }
-    .dept, .group {
-      font-size: 14px;
-      color: #666;
-    }
-
-    @media (max-width: 768px) {
-      .filters {
-        flex-direction: column;
-      }
+    body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 0; direction: rtl; }
+    header { background: #1976d2; color: white; padding: 20px; text-align: center; position: sticky; top: 0; z-index: 1000; }
+    .container { max-width: 1200px; margin: auto; padding: 20px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    .filters select, .filters input { padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; flex-grow: 1; min-width: 180px; }
+    .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; }
+    .card { background: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.08); padding: 10px; text-align: center; display: flex; flex-direction: column; }
+    .card img { width: 100%; height: 180px; object-fit: contain; border-bottom: 1px solid #eee; }
+    .name { font-size: 18px; font-weight: bold; margin: 10px 0 5px; color: #222; }
+    .price { font-size: 16px; color: #1976d2; margin-bottom: 5px; }
+    .group, .dept { font-size: 14px; color: #555; }
+    @media (max-width: 600px) {
+      .filters { flex-direction: column; }
     }
   </style>
 </head>
 <body>
-  <header>📦 קטלוג מוצרים</header>
+  <header>
+    <h1>📦 קטלוג מוצרים</h1>
+  </header>
+
   <div class="container">
     <div class="filters">
-      <input type="text" id="search" placeholder="🔍 חפש מוצר לפי שם או ברקוד">
-      <select id="deptFilter">
-        <option value="">כל המחלקות</option>
-      </select>
-      <select id="groupFilter">
-        <option value="">כל הקבוצות</option>
-      </select>
+      <input type="text" id="search" placeholder="🔍 חפש מוצר לפי שם או ברקוד...">
+      <select id="deptFilter"><option value="">כל המחלקות</option></select>
+      <select id="groupFilter"><option value="">כל הקבוצות</option></select>
     </div>
-    <div id="catalog" class="catalog"></div>
+
+    <div class="catalog" id="catalog"></div>
   </div>
 
   <script>
-    let catalog = [];
-    const departments = new Set();
-    const groups = new Set();
+    let allItems = [];
 
     async function loadCatalog() {
-      const res = await fetch('/api/fetch-catalog');
-      const result = await res.json();
-
-      if (!result.catalog || !Array.isArray(result.catalog)) {
-        console.error('הקטלוג שהתקבל לא תקין:', result);
-        return;
+      try {
+        const res = await fetch('/api/fetch-catalog');
+        const result = await res.json();
+        if (!Array.isArray(result.catalog)) {
+          console.error('הקטלוג שהתקבל לא תקין:', result);
+          return;
+        }
+        allItems = result.catalog;
+        populateFilters();
+        renderCatalog();
+      } catch (err) {
+        console.error('שגיאה בטעינת הקטלוג:', err);
       }
-
-      catalog = result.catalog;
-
-      catalog.forEach(item => {
-        if (item.department) departments.add(item.department);
-        if (item.group) groups.add(item.group);
-      });
-
-      populateFilters();
-      renderCatalog();
     }
 
     function populateFilters() {
-      const deptSelect = document.getElementById("deptFilter");
-      departments.forEach(dept => {
-        const opt = document.createElement("option");
+      const deptSet = new Set();
+      const groupSet = new Set();
+      allItems.forEach(item => {
+        if (item.department) deptSet.add(item.department);
+        if (item.group) groupSet.add(item.group);
+      });
+
+      const deptSelect = document.getElementById('deptFilter');
+      deptSet.forEach(dept => {
+        const opt = document.createElement('option');
         opt.value = dept;
         opt.textContent = dept;
         deptSelect.appendChild(opt);
       });
 
-      const groupSelect = document.getElementById("groupFilter");
-      groups.forEach(group => {
-        const opt = document.createElement("option");
+      const groupSelect = document.getElementById('groupFilter');
+      groupSet.forEach(group => {
+        const opt = document.createElement('option');
         opt.value = group;
         opt.textContent = group;
         groupSelect.appendChild(opt);
@@ -143,46 +81,32 @@
     }
 
     function renderCatalog() {
-      const catalogDiv = document.getElementById("catalog");
-      catalogDiv.innerHTML = "";
+      const container = document.getElementById("catalog");
+      container.innerHTML = "";
 
-      const search = document.getElementById("search").value.toLowerCase();
-      const dept = document.getElementById("deptFilter").value;
-      const group = document.getElementById("groupFilter").value;
+      const searchVal = document.getElementById("search").value.toLowerCase();
+      const deptFilter = document.getElementById("deptFilter").value;
+      const groupFilter = document.getElementById("groupFilter").value;
 
-      const filtered = catalog.filter(item =>
-        (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
-        (dept === "" || item.department === dept) &&
-        (group === "" || item.group === group)
+      const filtered = allItems.filter(item =>
+        (item.name.toLowerCase().includes(searchVal) || item.barcode.includes(searchVal)) &&
+        (deptFilter === "" || item.department === deptFilter) &&
+        (groupFilter === "" || item.group === groupFilter)
       );
 
       filtered.forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
-
         const img = document.createElement("img");
         img.src = item.imageUrl;
-        img.alt = item.name;
-        img.onerror = () => img.src = "https://via.placeholder.com/250x200?text=לא+נמצאה+תמונה";
+        img.onerror = () => { img.src = 'https://via.placeholder.com/250x180?text=No+Image'; };
+        const name = document.createElement("div"); name.className = "name"; name.textContent = item.name;
+        const price = document.createElement("div"); price.className = "price"; price.textContent = item.price + " ₪";
+        const dept = document.createElement("div"); dept.className = "dept"; dept.textContent = item.department;
+        const group = document.createElement("div"); group.className = "group"; group.textContent = item.group;
 
-        const name = document.createElement("div");
-        name.className = "name";
-        name.textContent = item.name;
-
-        const price = document.createElement("div");
-        price.className = "price";
-        price.textContent = item.price + " ₪";
-
-        const deptDiv = document.createElement("div");
-        deptDiv.className = "dept";
-        deptDiv.textContent = "מחלקה: " + item.department;
-
-        const groupDiv = document.createElement("div");
-        groupDiv.className = "group";
-        groupDiv.textContent = "קבוצה: " + item.group;
-
-        card.append(img, name, price, deptDiv, groupDiv);
-        catalogDiv.appendChild(card);
+        card.append(img, name, price, dept, group);
+        container.appendChild(card);
       });
     }
 
