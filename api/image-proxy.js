@@ -1,68 +1,48 @@
 import fetch from 'node-fetch';
 
-export const config = { runtime: 'nodejs' };
+export const config = {
+  runtime: 'edge',
+};
 
-const BASE_FOLDER = '/catalog';
+export default async function handler(req) {
+  const url = new URL(req.url);
+  const path = url.searchParams.get('path');
 
-async function getDropboxAccessToken() {
-  const params = new URLSearchParams();
-  params.append('grant_type', 'refresh_token');
-  params.append('refresh_token', process.env.DROPBOX_REFRESH_TOKEN);
-
-  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params
-  });
-
-  if (!res.ok) {
-    const error = await res.text();
-    console.error('❌ Token Refresh Failed:', error);
-    throw new Error('Cannot refresh Dropbox token');
-  }
-
-  const data = await res.json();
-  return data.access_token;
-}
-
-export default async function handler(req, res) {
-  const { path } = req.query;
-
-  if (!path) {
-    return res.status(400).json({ error: 'Missing image path' });
+  if (!path || !path.startsWith('/')) {
+    return new Response(JSON.stringify({ error: 'Invalid or missing path' }), {
+      status: 400,
+    });
   }
 
   try {
-    const token = await getDropboxAccessToken();
+    const accessToken = process.env.DROPBOX_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new Error('Missing Dropbox access token');
+    }
 
-    const fullPath = `${BASE_FOLDER}/${decodeURIComponent(path)}`;
-    const response = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+    const dropboxRes = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ path: fullPath })
+      body: JSON.stringify({ path }),
     });
 
-    if (response.status === 429) {
-      const retryAfter = response.headers.get('retry-after') || 5;
-      return res.status(429).json({ error: 'Too many requests', retryAfter });
+    if (!dropboxRes.ok) {
+      const error = await dropboxRes.json();
+      console.error('Dropbox Link Error:', error);
+      return new Response(JSON.stringify({ error: 'Dropbox Link Error', details: error }), {
+        status: 500,
+      });
     }
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ Dropbox Link Error:', error);
-      return res.status(500).json({ error: 'Failed to generate temporary image link' });
-    }
-
-    const json = await response.json();
-    res.redirect(json.link);
+    const { link } = await dropboxRes.json();
+    return Response.redirect(link, 302);
   } catch (err) {
-    console.error('❌ Proxy Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Proxy Handler Error:', err);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+    });
   }
 }
