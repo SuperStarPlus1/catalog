@@ -1,10 +1,10 @@
-// /api/fetch-catalog.js
 import XLSX from 'xlsx';
 import fetch from 'node-fetch';
 
 export const config = { runtime: 'nodejs' };
 
 const BASE_FOLDER = '/סריקות חנות/מוצרים';
+const EXCEL_FILE = `${BASE_FOLDER}/catalog.xls`;
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -14,15 +14,17 @@ async function getDropboxAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Authorization': 'Basic ' + Buffer.from(
+        `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
+      ).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: params
+    body: params,
   });
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('Failed to refresh token:', error);
+    console.error('❌ Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -38,18 +40,19 @@ export default async function handler(req, res) {
   try {
     const DROPBOX_TOKEN = await getDropboxAccessToken();
 
-    // שליפת הקובץ Excel
+    // הורדת הקובץ Excel
     const downloadRes = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: `${BASE_FOLDER}/catalog.xls` })
-      }
+        'Dropbox-API-Arg': JSON.stringify({ path: EXCEL_FILE }),
+      },
     });
 
     if (!downloadRes.ok) {
       const error = await downloadRes.text();
-      return res.status(500).json({ error });
+      console.error('❌ Failed to download Excel:', error);
+      return res.status(500).json({ error: 'Cannot download Excel file' });
     }
 
     const buffer = await downloadRes.buffer();
@@ -57,26 +60,25 @@ export default async function handler(req, res) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const catalog = rows.slice(1).map(row => {
-      const barcode = row[2]?.toString().trim() || '';
-      return {
-        name: row[1]?.toString().trim() || '',
-        barcode,
-        department: row[3]?.toString().trim() || '',
-        group: row[4]?.toString().trim() || '',
-        price: row[5]?.toString().trim() || '',
-        imageUrl: `https://www.dropbox.com/home${BASE_FOLDER}?preview=${barcode}.jpg`.replace("/home", "/s") // optional
-      };
-    });
+    if (!rows || rows.length < 2) {
+      return res.status(500).json({ error: 'Empty or invalid Excel file' });
+    }
 
-    // החלפה ל־dl.dropboxusercontent.com עבור הצגה ישירה
-    catalog.forEach(item => {
-      item.imageUrl = `https://dl.dropboxusercontent.com/s/${encodeURIComponent(item.barcode)}.jpg`;
+    const catalog = rows.slice(1).map(row => {
+      const barcode = (row[2] || '').toString().trim();
+      return {
+        name: (row[1] || '').toString().trim(),
+        barcode,
+        department: (row[3] || '').toString().trim(),
+        group: (row[4] || '').toString().trim(),
+        price: (row[5] || '').toString().trim(),
+        imageUrl: `https://content.dropboxapi.com/2/files/download?path=${encodeURIComponent(`${BASE_FOLDER}/${barcode}.jpg`)}`
+      };
     });
 
     res.status(200).json({ catalog });
   } catch (err) {
-    console.error('Catalog Fetch Error:', err);
+    console.error('❌ Catalog Fetch Error:', err);
     res.status(500).json({ error: err.message });
   }
 }
