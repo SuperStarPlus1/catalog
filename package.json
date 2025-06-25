@@ -3,10 +3,6 @@
   "version": "1.0.0",
   "description": "קטלוג מוצרים דינמי מבוסס Dropbox ו-Excel",
   "main": "index.js",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "vercel build"
-  },
   "dependencies": {
     "xlsx": "^0.18.5",
     "node-fetch": "^2.6.11"
