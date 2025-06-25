@@ -1,3 +1,5 @@
+// File: /api/fetch-catalog.js
+
 import XLSX from 'xlsx';
 import fetch from 'node-fetch';
 
@@ -29,18 +31,36 @@ async function getDropboxAccessToken() {
   return data.access_token;
 }
 
+async function getTemporaryLink(path, token) {
+  const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ path })
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const data = await res.json();
+  return data.link;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const DROPBOX_TOKEN = await getDropboxAccessToken();
+    const token = await getDropboxAccessToken();
 
     const downloadRes = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DROPBOX_TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Dropbox-API-Arg': JSON.stringify({ path: `${BASE_FOLDER}/catalog.xls` })
       }
     });
@@ -50,22 +70,28 @@ export default async function handler(req, res) {
       return res.status(500).json({ error });
     }
 
-    const buffer = await downloadRes.arrayBuffer();
+    const buffer = await downloadRes.buffer();
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const catalog = rows.slice(1).map(row => {
+    const catalog = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
       const barcode = row[2]?.toString().trim() || '';
-      return {
+      const imagePath = `${BASE_FOLDER}/${barcode}.jpg`;
+      const imageUrl = await getTemporaryLink(imagePath, token);
+
+      catalog.push({
         name: row[1]?.toString().trim() || '',
         barcode,
         department: row[3]?.toString().trim() || '',
         group: row[4]?.toString().trim() || '',
         price: row[5]?.toString().trim() || '',
-        imagePath: `${BASE_FOLDER}/${barcode}.jpg`
-      };
-    });
+        imageUrl: imageUrl || ''
+      });
+    }
 
     res.status(200).json(catalog);
   } catch (err) {
