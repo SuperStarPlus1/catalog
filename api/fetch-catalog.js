@@ -4,7 +4,6 @@ import fetch from 'node-fetch';
 export const config = { runtime: 'nodejs' };
 
 const BASE_FOLDER = '/סריקות חנות/מוצרים';
-const FILE_NAME = 'catalog.xls';
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -24,7 +23,7 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Token Refresh Error:', error);
+    console.error('❌ Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -40,20 +39,19 @@ export default async function handler(req, res) {
   try {
     const DROPBOX_TOKEN = await getDropboxAccessToken();
 
-    const path = `${BASE_FOLDER}/${FILE_NAME}`;
-    const dropboxArg = JSON.stringify({ path });
-
     const downloadRes = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': dropboxArg // חייב להיות חוקי JSON עם תווים תקינים
+        'Dropbox-API-Arg': Buffer.from(JSON.stringify({
+          path: `${BASE_FOLDER}/catalog.xls`
+        })).toString('utf8')  // make sure header is valid UTF-8
       }
     });
 
     if (!downloadRes.ok) {
       const error = await downloadRes.text();
-      console.error('❌ File Download Error:', error);
+      console.error('❌ Dropbox Download Error:', error);
       return res.status(500).json({ error });
     }
 
@@ -70,13 +68,13 @@ export default async function handler(req, res) {
         department: row[3]?.toString().trim() || '',
         group: row[4]?.toString().trim() || '',
         price: row[5]?.toString().trim() || '',
-        imagePath: `${BASE_FOLDER}/${barcode}.jpg`
+        imageUrl: `/api/image-proxy?path=${encodeURIComponent(`${BASE_FOLDER}/${barcode}.jpg`)}`
       };
     });
 
-    return res.status(200).json(catalog);
+    res.status(200).json(catalog);
   } catch (err) {
     console.error('❌ Catalog Fetch Error:', err);
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 }
