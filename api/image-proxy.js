@@ -1,8 +1,8 @@
-// pages/api/image-proxy.js
-
 import fetch from 'node-fetch';
 
 export const config = { runtime: 'nodejs' };
+
+const BASE_FOLDER = '/catalog';
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -12,9 +12,7 @@ async function getDropboxAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: {
-      'Authorization': 'Basic ' + Buffer.from(
-        `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
-      ).toString('base64'),
+      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     body: params
@@ -22,8 +20,8 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Token Refresh Error:', error);
-    throw new Error('Failed to refresh Dropbox token');
+    console.error('❌ Token Refresh Failed:', error);
+    throw new Error('Cannot refresh Dropbox token');
   }
 
   const data = await res.json();
@@ -38,27 +36,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const DROPBOX_TOKEN = await getDropboxAccessToken();
+    const token = await getDropboxAccessToken();
 
-    const dropboxRes = await fetch('https://content.dropboxapi.com/2/files/download', {
+    const fullPath = `${BASE_FOLDER}/${decodeURIComponent(path)}`;
+    const response = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: decodeURIComponent(path) }).replace(/\u202a|\u202c/g, '')
-      }
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path: fullPath })
     });
 
-    if (!dropboxRes.ok) {
-      const error = await dropboxRes.text();
-      console.error('❌ Dropbox Image Fetch Error:', error);
-      return res.status(404).json({ error: 'Image not found' });
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('retry-after') || 5;
+      return res.status(429).json({ error: 'Too many requests', retryAfter });
     }
 
-    res.setHeader('Content-Type', dropboxRes.headers.get('Content-Type') || 'image/jpeg');
-    const buffer = await dropboxRes.buffer();
-    res.send(buffer);
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('❌ Dropbox Link Error:', error);
+      return res.status(500).json({ error: 'Failed to generate temporary image link' });
+    }
+
+    const json = await response.json();
+    res.redirect(json.link);
   } catch (err) {
-    console.error('❌ Image Proxy Error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch image' });
+    console.error('❌ Proxy Error:', err);
+    res.status(500).json({ error: err.message });
   }
 }
