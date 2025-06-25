@@ -1,8 +1,10 @@
+// /api/image-proxy.js
+
 import fetch from 'node-fetch';
 
-export const config = { runtime: 'nodejs' };
-
-const BASE_FOLDER = '/סריקות חנות/מוצרים';
+export const config = {
+  runtime: 'nodejs',
+};
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -12,15 +14,19 @@ async function getDropboxAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
+      Authorization:
+        'Basic ' +
+        Buffer.from(
+          `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
+        ).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: params
+    body: params,
   });
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('Failed to refresh token:', error);
+    console.error('🔴 Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -29,35 +35,33 @@ async function getDropboxAccessToken() {
 }
 
 export default async function handler(req, res) {
-  const { path } = req.query;
-
-  if (!path) {
-    return res.status(400).json({ error: 'Missing image path' });
+  const imagePath = req.query.path;
+  if (!imagePath) {
+    return res.status(400).send('Missing image path');
   }
 
   try {
-    const DROPBOX_TOKEN = await getDropboxAccessToken();
+    const token = await getDropboxAccessToken();
 
-    const imageRes = await fetch('https://content.dropboxapi.com/2/files/download', {
+    const response = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: decodeURIComponent(path) })
-      }
+        Authorization: `Bearer ${token}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: imagePath }),
+      },
     });
 
-    if (!imageRes.ok) {
-      const error = await imageRes.text();
-      console.error("Dropbox Link Error:", error);
-      return res.status(500).json({ error });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('🔴 Dropbox image download error:', errorText);
+      return res.status(500).send('Image not found');
     }
 
-    res.setHeader('Content-Type', imageRes.headers.get('Content-Type') || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-
-    imageRes.body.pipe(res);
+    res.setHeader('Content-Type', 'image/jpeg');
+    const buffer = await response.buffer();
+    res.send(buffer);
   } catch (err) {
-    console.error("Image Proxy Error:", err);
-    res.status(500).json({ error: err.message });
+    console.error('🔴 Image Proxy Error:', err.message);
+    res.status(500).send('Server error');
   }
 }
