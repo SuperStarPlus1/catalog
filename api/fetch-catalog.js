@@ -1,9 +1,12 @@
+// pages/api/fetch-catalog.js
+
 import XLSX from 'xlsx';
 import fetch from 'node-fetch';
 
 export const config = { runtime: 'nodejs' };
 
-const BASE_FOLDER = '/סריקות חנות/מוצרים';
+// נתיב חדש של התיקייה בדרופבוקס
+const BASE_FOLDER = '/catalog';
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -23,7 +26,7 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Failed to refresh token:', error);
+    console.error('🔴 Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -43,22 +46,24 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': Buffer.from(JSON.stringify({
-          path: `${BASE_FOLDER}/catalog.xls`
-        })).toString('utf8')  // make sure header is valid UTF-8
+        'Dropbox-API-Arg': JSON.stringify({ path: `${BASE_FOLDER}/catalog.xls` }).replace(/\u202a|\u202c/g, '')
       }
     });
 
     if (!downloadRes.ok) {
       const error = await downloadRes.text();
-      console.error('❌ Dropbox Download Error:', error);
-      return res.status(500).json({ error });
+      console.error('❌ Dropbox File Download Error:', error);
+      return res.status(500).json({ error: 'Failed to download Excel file from Dropbox' });
     }
 
     const buffer = await downloadRes.buffer();
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    if (!rows || rows.length <= 1) {
+      return res.status(400).json({ error: 'Empty or invalid catalog data' });
+    }
 
     const catalog = rows.slice(1).map(row => {
       const barcode = row[2]?.toString().trim() || '';
