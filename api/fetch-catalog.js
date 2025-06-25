@@ -1,4 +1,3 @@
-// api/fetch-catalog.js
 import XLSX from 'xlsx';
 import fetch from 'node-fetch';
 
@@ -14,7 +13,9 @@ async function getDropboxAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
+      'Authorization': 'Basic ' + Buffer.from(
+        `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
+      ).toString('base64'),
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     body: params
@@ -22,7 +23,7 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('🔴 Failed to refresh token:', error);
+    console.error('❌ Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -31,7 +32,9 @@ async function getDropboxAccessToken() {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
     const DROPBOX_TOKEN = await getDropboxAccessToken();
@@ -40,14 +43,16 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: `${BASE_FOLDER}/catalog.xls` })
+        'Dropbox-API-Arg': JSON.stringify({
+          path: `${BASE_FOLDER}/catalog.xls`
+        })
       }
     });
 
     if (!downloadRes.ok) {
       const error = await downloadRes.text();
-      console.error('🔴 Dropbox download error:', error);
-      return res.status(500).json({ error });
+      console.error('❌ Failed to download catalog.xls:', error);
+      return res.status(500).json({ error: 'Failed to load Excel file from Dropbox' });
     }
 
     const buffer = await downloadRes.buffer();
@@ -56,20 +61,20 @@ export default async function handler(req, res) {
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     const catalog = rows.slice(1).map(row => {
-      const barcode = row[2]?.toString().trim();
+      const barcode = row[2]?.toString().trim() || '';
       return {
         name: row[1]?.toString().trim() || '',
         barcode,
         department: row[3]?.toString().trim() || '',
         group: row[4]?.toString().trim() || '',
         price: row[5]?.toString().trim() || '',
-        imageUrl: `https://www.dropbox.com/home${BASE_FOLDER}/${barcode}.jpg?raw=1`
+        imageUrl: `https://content.dropboxapi.com/2/files/download?arg={"path": "${BASE_FOLDER}/${barcode}.jpg"}`
       };
     });
 
-    return res.status(200).json(catalog);
+    res.status(200).json(catalog);
   } catch (err) {
-    console.error('🔴 Catalog Fetch Error:', err);
-    return res.status(500).json({ error: err.message });
+    console.error('❌ Catalog Fetch Error:', err);
+    res.status(500).json({ error: err.message });
   }
 }
