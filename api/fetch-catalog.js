@@ -3,8 +3,8 @@ import fetch from 'node-fetch';
 
 export const config = { runtime: 'nodejs' };
 
-const BASE_FOLDER = '/סריקות חנות/מוצרים';
-const EXCEL_FILE = `${BASE_FOLDER}/catalog.xls`;
+const BASE_PATH = '/סריקות חנות/מוצרים';
+const EXCEL_FILE = `${BASE_PATH}/catalog.xls`;
 
 async function getDropboxAccessToken() {
   const params = new URLSearchParams();
@@ -17,19 +17,35 @@ async function getDropboxAccessToken() {
       'Authorization': 'Basic ' + Buffer.from(
         `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
       ).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body: params,
+    body: params
   });
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Failed to refresh token:', error);
-    throw new Error('Cannot refresh Dropbox token');
+    console.error("🔴 Token Refresh Error:", error);
+    throw new Error("Cannot refresh Dropbox token");
   }
 
   const data = await res.json();
   return data.access_token;
+}
+
+async function getTemporaryLink(token, path) {
+  const res = await fetch("https://api.dropboxapi.com/2/files/get_temporary_link", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ path })
+  });
+
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  return json.link;
 }
 
 export default async function handler(req, res) {
@@ -38,47 +54,46 @@ export default async function handler(req, res) {
   }
 
   try {
-    const DROPBOX_TOKEN = await getDropboxAccessToken();
+    const token = await getDropboxAccessToken();
 
-    // הורדת הקובץ Excel
-    const downloadRes = await fetch('https://content.dropboxapi.com/2/files/download', {
-      method: 'POST',
+    const fileRes = await fetch("https://content.dropboxapi.com/2/files/download", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({ path: EXCEL_FILE }),
-      },
+        "Authorization": `Bearer ${token}`,
+        "Dropbox-API-Arg": JSON.stringify({ path: EXCEL_FILE })
+      }
     });
 
-    if (!downloadRes.ok) {
-      const error = await downloadRes.text();
-      console.error('❌ Failed to download Excel:', error);
-      return res.status(500).json({ error: 'Cannot download Excel file' });
+    if (!fileRes.ok) {
+      const error = await fileRes.text();
+      return res.status(500).json({ error: "Failed to fetch Excel file", details: error });
     }
 
-    const buffer = await downloadRes.buffer();
+    const buffer = await fileRes.buffer();
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    if (!rows || rows.length < 2) {
-      return res.status(500).json({ error: 'Empty or invalid Excel file' });
+    const catalog = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const barcode = row[2]?.toString().trim() || '';
+      const imagePath = `${BASE_PATH}/${barcode}.jpg`;
+      const imageUrl = await getTemporaryLink(token, imagePath);
+
+      catalog.push({
+        name: row[1]?.toString().trim() || '',
+        barcode,
+        department: row[3]?.toString().trim() || '',
+        group: row[4]?.toString().trim() || '',
+        price: row[5]?.toString().trim() || '',
+        imageUrl: imageUrl || null
+      });
     }
 
-    const catalog = rows.slice(1).map(row => {
-      const barcode = (row[2] || '').toString().trim();
-      return {
-        name: (row[1] || '').toString().trim(),
-        barcode,
-        department: (row[3] || '').toString().trim(),
-        group: (row[4] || '').toString().trim(),
-        price: (row[5] || '').toString().trim(),
-        imageUrl: `https://content.dropboxapi.com/2/files/download?path=${encodeURIComponent(`${BASE_FOLDER}/${barcode}.jpg`)}`
-      };
-    });
-
-    res.status(200).json({ catalog });
+    return res.status(200).json({ catalog });
   } catch (err) {
-    console.error('❌ Catalog Fetch Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error("🔴 Catalog API Error:", err);
+    return res.status(500).json({ error: err.message });
   }
 }
