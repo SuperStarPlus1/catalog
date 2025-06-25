@@ -12,9 +12,7 @@ async function getDropboxAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: {
-      'Authorization': 'Basic ' + Buffer.from(
-        `${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`
-      ).toString('base64'),
+      'Authorization': 'Basic ' + Buffer.from(`${process.env.DROPBOX_APP_KEY}:${process.env.DROPBOX_APP_SECRET}`).toString('base64'),
       'Content-Type': 'application/x-www-form-urlencoded'
     },
     body: params
@@ -22,7 +20,7 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Token Refresh Error:', error);
+    console.error('Failed to refresh token:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -31,37 +29,35 @@ async function getDropboxAccessToken() {
 }
 
 export default async function handler(req, res) {
-  const { barcode } = req.query;
+  const { path } = req.query;
 
-  if (!barcode) {
-    return res.status(400).json({ error: 'Missing barcode' });
+  if (!path) {
+    return res.status(400).json({ error: 'Missing image path' });
   }
 
   try {
     const DROPBOX_TOKEN = await getDropboxAccessToken();
 
-    const path = `${BASE_FOLDER}/${barcode}.jpg`;
-
-    const response = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+    const imageRes = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ path })
+        'Dropbox-API-Arg': JSON.stringify({ path: decodeURIComponent(path) })
+      }
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ Dropbox Link Error:', error);
+    if (!imageRes.ok) {
+      const error = await imageRes.text();
+      console.error("Dropbox Link Error:", error);
       return res.status(500).json({ error });
     }
 
-    const json = await response.json();
-    return res.status(200).json({ url: json.link });
+    res.setHeader('Content-Type', imageRes.headers.get('Content-Type') || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
 
+    imageRes.body.pipe(res);
   } catch (err) {
-    console.error('❌ Proxy Error:', err);
-    return res.status(500).json({ error: err.message });
+    console.error("Image Proxy Error:", err);
+    res.status(500).json({ error: err.message });
   }
 }
