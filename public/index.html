@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Product Catalog</title>
+  <title>📦 קטלוג מוצרים</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f9f9f9;
+      background: #f0f0f0;
       margin: 0;
       padding: 0;
     }
@@ -16,11 +16,9 @@
       color: white;
       padding: 15px;
       text-align: center;
-      font-size: 24px;
-      font-weight: bold;
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 1000;
     }
     .container {
       padding: 20px;
@@ -32,13 +30,15 @@
       flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 20px;
+      justify-content: center;
     }
-    .filters select, .filters input {
+    .filters select,
+    .filters input {
       padding: 10px;
       font-size: 16px;
-      border-radius: 6px;
+      border-radius: 8px;
       border: 1px solid #ccc;
-      min-width: 160px;
+      min-width: 180px;
     }
     .catalog {
       display: grid;
@@ -47,13 +47,12 @@
     }
     .card {
       background: white;
-      border-radius: 10px;
+      border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       padding: 15px;
       text-align: center;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
     }
     .card img {
       width: 100%;
@@ -65,6 +64,7 @@
     .name {
       font-size: 18px;
       font-weight: bold;
+      color: #333;
       margin: 10px 0;
     }
     .price {
@@ -72,29 +72,39 @@
       color: #2196f3;
       margin: 5px 0;
     }
-    .group, .dept {
+    .group,
+    .dept {
       font-size: 14px;
       color: #666;
+    }
+
+    @media (max-width: 600px) {
+      .filters {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   </style>
 </head>
 <body>
-  <header>📦 Product Catalog</header>
+  <header>
+    <h1>📦 קטלוג מוצרים</h1>
+  </header>
   <div class="container">
     <div class="filters">
-      <input type="text" id="search" placeholder="Search...">
+      <input type="text" id="search" placeholder="חפש מוצר...">
       <select id="deptFilter">
-        <option value="">All Departments</option>
+        <option value="">כל המחלקות</option>
       </select>
       <select id="groupFilter">
-        <option value="">All Groups</option>
+        <option value="">כל הקבוצות</option>
       </select>
     </div>
     <div class="catalog" id="catalog"></div>
   </div>
 
   <script>
-    let data = [];
+    let catalog = [];
     let departments = new Set();
     let groups = new Set();
 
@@ -103,33 +113,35 @@
         const res = await fetch('/api/fetch-catalog');
         const result = await res.json();
         if (!Array.isArray(result.catalog)) {
-          console.error("❌ Invalid catalog format:", result);
+          console.error("הקטלוג שהתקבל לא תקין:", result);
           return;
         }
-        data = result.catalog;
-        data.forEach(item => {
-          if (item.department) departments.add(item.department);
-          if (item.group) groups.add(item.group);
+        catalog = result.catalog;
+
+        catalog.forEach(item => {
+          departments.add(item.department);
+          groups.add(item.group);
         });
-        renderFilters();
+
+        populateFilters();
         renderCatalog();
       } catch (err) {
-        console.error("❌ Failed to load catalog:", err);
+        console.error("שגיאה בטעינת הקטלוג:", err);
       }
     }
 
-    function renderFilters() {
-      const deptSelect = document.getElementById("deptFilter");
-      [...departments].sort().forEach(dept => {
-        const opt = document.createElement("option");
+    function populateFilters() {
+      const deptSelect = document.getElementById('deptFilter');
+      departments.forEach(dept => {
+        const opt = document.createElement('option');
         opt.value = dept;
         opt.textContent = dept;
         deptSelect.appendChild(opt);
       });
 
-      const groupSelect = document.getElementById("groupFilter");
-      [...groups].sort().forEach(group => {
-        const opt = document.createElement("option");
+      const groupSelect = document.getElementById('groupFilter');
+      groups.forEach(group => {
+        const opt = document.createElement('option');
         opt.value = group;
         opt.textContent = group;
         groupSelect.appendChild(opt);
@@ -137,28 +149,25 @@
     }
 
     function renderCatalog() {
-      const catalog = document.getElementById("catalog");
-      catalog.innerHTML = "";
-
+      const container = document.getElementById("catalog");
       const search = document.getElementById("search").value.toLowerCase();
       const dept = document.getElementById("deptFilter").value;
       const group = document.getElementById("groupFilter").value;
 
-      const filtered = data.filter(item => {
-        return (
-          (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
-          (dept === "" || item.department === dept) &&
-          (group === "" || item.group === group)
-        );
-      });
+      const filtered = catalog.filter(item =>
+        (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
+        (dept === "" || item.department === dept) &&
+        (group === "" || item.group === group)
+      );
 
+      container.innerHTML = "";
       filtered.forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
 
         const img = document.createElement("img");
-        img.src = item.imageUrl || 'https://via.placeholder.com/250x200?text=No+Image';
-        img.onerror = () => img.src = 'https://via.placeholder.com/250x200?text=No+Image';
+        img.src = item.imageUrl;
+        img.onerror = () => img.src = "https://via.placeholder.com/250x200?text=No+Image";
 
         const name = document.createElement("div");
         name.className = "name";
@@ -166,7 +175,7 @@
 
         const price = document.createElement("div");
         price.className = "price";
-        price.textContent = item.price + " ₪";
+        price.textContent = `${item.price} ₪`;
 
         const deptDiv = document.createElement("div");
         deptDiv.className = "dept";
@@ -177,7 +186,7 @@
         groupDiv.textContent = item.group;
 
         card.append(img, name, price, deptDiv, groupDiv);
-        catalog.appendChild(card);
+        container.appendChild(card);
       });
     }
 
