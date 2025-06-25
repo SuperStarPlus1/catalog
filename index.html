@@ -3,28 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>קטלוג מוצרים</title>
+  <title>📦 קטלוג מוצרים</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; direction: rtl; }
-    header { background: #2196f3; color: white; padding: 15px; text-align: center; position: sticky; top: 0; z-index: 10; }
-    .container { padding: 20px; max-width: 1200px; margin: auto; }
-    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-    .filters select, .filters input { padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; }
-    .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
-    .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 15px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
-    .card img { width: 100%; height: 200px; object-fit: contain; margin-bottom: 10px; border-bottom: 1px solid #eee; }
-    .name { font-size: 18px; font-weight: bold; color: #333; margin: 10px 0; }
-    .price { font-size: 16px; color: #2196f3; margin: 5px 0; }
-    .group, .dept { font-size: 14px; color: #666; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #1976d2;
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .filters input, .filters select {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      flex: 1;
+    }
+    .catalog {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 15px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+    }
+    .card img {
+      width: 100%;
+      height: 200px;
+      object-fit: contain;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    .name {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 5px 0;
+    }
+    .price {
+      font-size: 16px;
+      color: #388e3c;
+      margin: 5px 0;
+    }
+    .dept, .group {
+      font-size: 14px;
+      color: #666;
+    }
+
+    @media (max-width: 768px) {
+      .filters {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>📦 קטלוג מוצרים</h1>
-  </header>
+  <header>📦 קטלוג מוצרים</header>
   <div class="container">
     <div class="filters">
-      <input type="text" id="search" placeholder="חפש מוצר...">
+      <input type="text" id="search" placeholder="🔍 חפש מוצר לפי שם או ברקוד">
       <select id="deptFilter">
         <option value="">כל המחלקות</option>
       </select>
@@ -32,60 +96,93 @@
         <option value="">כל הקבוצות</option>
       </select>
     </div>
-    <div class="catalog" id="catalog"></div>
+    <div id="catalog" class="catalog"></div>
   </div>
 
   <script>
-    let data = [];
-    let departments = new Set();
-    let groups = new Set();
+    let catalog = [];
+    const departments = new Set();
+    const groups = new Set();
 
     async function loadCatalog() {
       const res = await fetch('/api/fetch-catalog');
-      data = await res.json();
-      data.forEach(item => {
-        departments.add(item.department);
-        groups.add(item.group);
+      const result = await res.json();
+
+      if (!result.catalog || !Array.isArray(result.catalog)) {
+        console.error('הקטלוג שהתקבל לא תקין:', result);
+        return;
+      }
+
+      catalog = result.catalog;
+
+      catalog.forEach(item => {
+        if (item.department) departments.add(item.department);
+        if (item.group) groups.add(item.group);
       });
-      renderFilters();
+
+      populateFilters();
       renderCatalog();
     }
 
-    function renderFilters() {
+    function populateFilters() {
       const deptSelect = document.getElementById("deptFilter");
-      [...departments].sort().forEach(dept => {
+      departments.forEach(dept => {
         const opt = document.createElement("option");
-        opt.value = dept; opt.textContent = dept;
+        opt.value = dept;
+        opt.textContent = dept;
         deptSelect.appendChild(opt);
       });
+
       const groupSelect = document.getElementById("groupFilter");
-      [...groups].sort().forEach(group => {
+      groups.forEach(group => {
         const opt = document.createElement("option");
-        opt.value = group; opt.textContent = group;
+        opt.value = group;
+        opt.textContent = group;
         groupSelect.appendChild(opt);
       });
     }
 
     function renderCatalog() {
-      const catalog = document.getElementById("catalog");
-      catalog.innerHTML = "";
+      const catalogDiv = document.getElementById("catalog");
+      catalogDiv.innerHTML = "";
+
       const search = document.getElementById("search").value.toLowerCase();
       const dept = document.getElementById("deptFilter").value;
       const group = document.getElementById("groupFilter").value;
-      const filtered = data.filter(item => {
-        return (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
-               (dept === "" || item.department === dept) &&
-               (group === "" || item.group === group);
-      });
+
+      const filtered = catalog.filter(item =>
+        (item.name.toLowerCase().includes(search) || item.barcode.includes(search)) &&
+        (dept === "" || item.department === dept) &&
+        (group === "" || item.group === group)
+      );
+
       filtered.forEach(item => {
-        const card = document.createElement("div"); card.className = "card";
-        const img = document.createElement("img"); img.src = item.imageUrl; img.onerror = () => img.src = 'https://via.placeholder.com/250x200?text=No+Image';
-        const name = document.createElement("div"); name.className = "name"; name.textContent = item.name;
-        const price = document.createElement("div"); price.className = "price"; price.textContent = item.price + " ₪";
-        const deptDiv = document.createElement("div"); deptDiv.className = "dept"; deptDiv.textContent = item.department;
-        const groupDiv = document.createElement("div"); groupDiv.className = "group"; groupDiv.textContent = item.group;
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const img = document.createElement("img");
+        img.src = item.imageUrl;
+        img.alt = item.name;
+        img.onerror = () => img.src = "https://via.placeholder.com/250x200?text=לא+נמצאה+תמונה";
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = item.name;
+
+        const price = document.createElement("div");
+        price.className = "price";
+        price.textContent = item.price + " ₪";
+
+        const deptDiv = document.createElement("div");
+        deptDiv.className = "dept";
+        deptDiv.textContent = "מחלקה: " + item.department;
+
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "group";
+        groupDiv.textContent = "קבוצה: " + item.group;
+
         card.append(img, name, price, deptDiv, groupDiv);
-        catalog.appendChild(card);
+        catalogDiv.appendChild(card);
       });
     }
 
