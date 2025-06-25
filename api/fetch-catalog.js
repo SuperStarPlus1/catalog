@@ -23,7 +23,7 @@ async function getDropboxAccessToken() {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('❌ Failed to refresh token:', error);
+    console.error('🔴 Token Refresh Error:', error);
     throw new Error('Cannot refresh Dropbox token');
   }
 
@@ -39,20 +39,24 @@ export default async function handler(req, res) {
   try {
     const DROPBOX_TOKEN = await getDropboxAccessToken();
 
+    const apiArg = {
+      path: `${BASE_FOLDER}/catalog.xls`
+    };
+
     const downloadRes = await fetch('https://content.dropboxapi.com/2/files/download', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${DROPBOX_TOKEN}`,
-        'Dropbox-API-Arg': JSON.stringify({
-          path: `${BASE_FOLDER}/catalog.xls`
-        })
+        'Dropbox-API-Arg': JSON.stringify(apiArg).replace(/[\u007F-\uFFFF]/g, chr => 
+          '\\u' + ('0000' + chr.charCodeAt(0).toString(16)).slice(-4)
+        )
       }
     });
 
     if (!downloadRes.ok) {
       const error = await downloadRes.text();
-      console.error('❌ Failed to download catalog.xls:', error);
-      return res.status(500).json({ error: 'Failed to load Excel file from Dropbox' });
+      console.error('🔴 Dropbox Download Error:', error);
+      return res.status(500).json({ error });
     }
 
     const buffer = await downloadRes.buffer();
@@ -68,11 +72,12 @@ export default async function handler(req, res) {
         department: row[3]?.toString().trim() || '',
         group: row[4]?.toString().trim() || '',
         price: row[5]?.toString().trim() || '',
-        imageUrl: `https://content.dropboxapi.com/2/files/download?arg={"path": "${BASE_FOLDER}/${barcode}.jpg"}`
+        imagePath: `${BASE_FOLDER}/${barcode}.jpg`
       };
     });
 
-    res.status(200).json(catalog);
+    res.status(200).json({ catalog });
+
   } catch (err) {
     console.error('❌ Catalog Fetch Error:', err);
     res.status(500).json({ error: err.message });
