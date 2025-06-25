@@ -1,15 +1,9 @@
 {
-  "name": "product-catalog",
+  "name": "catalog-api",
   "version": "1.0.0",
-  "description": "Dynamic product catalog connected to Dropbox",
-  "main": "index.js",
-  "scripts": {
-    "dev": "vercel dev",
-    "start": "vercel dev"
-  },
+  "type": "module",
   "dependencies": {
-    "xlsx": "^0.18.5",
-    "node-fetch": "^2.6.7"
-  },
-  "type": "module"
+    "node-fetch": "^3.4.1",
+    "xlsx": "^0.18.5"
+  }
 }
