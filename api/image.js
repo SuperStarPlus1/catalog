@@ -1,3 +1,7 @@
+export const config = {
+  runtime: 'nodejs',
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Only GET allowed' });
@@ -17,7 +21,7 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ path: `/catalog/${filename}` }) // adjust if needed
+      body: JSON.stringify({ path: `/catalog/${filename}` })
     });
 
     if (!dropboxRes.ok) {
@@ -49,4 +53,10 @@ async function getAccessToken() {
     body: params
   });
 
-  if (!res.
+  if (!res.ok) {
+    throw new Error('Failed to refresh access token');
+  }
+
+  const data = await res.json();
+  return data.access_token;
+}
